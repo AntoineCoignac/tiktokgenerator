@@ -9,7 +9,6 @@ export async function generateAudio(text, destination) {
             if (err) {
                 reject(null);
             } else {
-                console.log(result);
                 resolve(output);
             }
         });
