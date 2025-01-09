@@ -17,7 +17,7 @@ if (!destination) {
 }
 
 
-generateText(destination).then((text) => {
+generateText(title).then((text) => {
     console.log(text);
     generateAudio(text, destination).then((audioFile) => {
         console.log(`Audio file generated: ${audioFile}`);

@@ -95,21 +95,21 @@ export async function generateVideo(audio_path, destination, title, timeToFly, l
     const listFilePath = './temp/mylist.txt';
     fs.writeFileSync(listFilePath, videoClips.map(clip => `file ${clip?.path}`).join('\n'));
     
-    const outputVideoPath = `./videos/${destination}.mp4`;
+    const outputVideoPath = `./videos/${destination.replaceAll(" ", "").replaceAll("'", "")}.mp4`;
     
     try {
         let cmd = `ffmpeg -f concat -i ${listFilePath} -c copy ${outputVideoPath}`;
         await execPromise(cmd);
         console.log("First command done!");
 
-        const withoutTextOutputPath = `./videos/withouttext_${destination}.mp4`;
+        const withoutTextOutputPath = `./videos/withouttext_${destination.replaceAll(" ", "").replaceAll("'", "")}.mp4`;
         cmd = `ffmpeg -i ${outputVideoPath} -i ${audio_path} -map 0:v -map 1:a -c:v copy -shortest ${withoutTextOutputPath}`;
         await execPromise(cmd);
         console.log("Second command done!");
 
         // Add destination text to the video
-        const finalOutputPath = `./videos/final_${destination}.mp4`;
-        cmd = `ffmpeg -i ${withoutTextOutputPath} -vf "drawtext=fontfile='fonts/Satoshi-Bold.otf':text='${title}':fontcolor=white:fontsize=96:x=(w-text_w)/2:y=(h-text_h)/2-20, drawtext=fontfile='fonts/Satoshi-Bold.otf':text='${timeToFly}':fontcolor=white:fontsize=48:x=(w-text_w)/2:y=(h-text_h)/2+100, drawtext=fontfile='fonts/Satoshi-Bold.otf':text='${language}':fontcolor=white:fontsize=48:x=(w-text_w)/2:y=(h-text_h)/2+180" -codec:a copy ${finalOutputPath}`;
+        const finalOutputPath = `./videos/final_${destination.replaceAll(" ", "").replaceAll("'", "")}.mp4`;
+        cmd = `ffmpeg -i ${withoutTextOutputPath} -vf "drawtext=fontfile='fonts/Satoshi-Bold.otf':text='${title}':fontcolor=white:fontsize=96:shadowcolor=black@0.6:shadowx=4:shadowy=2:x=(w-text_w)/2:y=(h-text_h)/2-20, drawtext=fontfile='fonts/Satoshi-Bold.otf':text='${timeToFly}':fontcolor=white:fontsize=48:shadowcolor=black@0.6:shadowx=4:shadowy=2:x=(w-text_w)/2:y=(h-text_h)/2+100, drawtext=fontfile='fonts/Satoshi-Bold.otf':text='${language}':fontcolor=white:fontsize=48:shadowcolor=black@0.6:shadowx=4:shadowy=2:x=(w-text_w)/2:y=(h-text_h)/2+180" -codec:a copy ${finalOutputPath}`;
         await execPromise(cmd);
         console.log("Text added to video!");
 
