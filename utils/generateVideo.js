@@ -4,6 +4,8 @@ import ffmpeg from 'fluent-ffmpeg';
 import ffprobeInstaller from '@ffprobe-installer/ffprobe';
 import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
 import { exec as Exec } from 'child_process';
+import { get } from 'http';
+import { text } from 'stream/consumers';
 
 ffmpeg.setFfprobePath(ffprobeInstaller.path);
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
@@ -38,7 +40,16 @@ function execPromise(cmd) {
     });
 }
 
-export async function generateVideo(audio_path, destination, title, timeToFly, language) {
+async function getAudioDuration(path){
+    return await new Promise((resolve, reject) => {
+        ffmpeg.ffprobe(path, (err, metadata) => {
+            if (err) reject(err);
+            resolve(metadata?.format?.duration || 0);
+        });
+    });
+}
+
+export async function generateVideo(audio_path, destination, title, timeToFly, language, sentences) {
     const url = `https://api.pexels.com/videos/search?query=${destination}&size=small`;
     const videos = await fetchVideos(url);
 
@@ -47,12 +58,7 @@ export async function generateVideo(audio_path, destination, title, timeToFly, l
         return;
     }
 
-    const audioDuration = await new Promise((resolve, reject) => {
-        ffmpeg.ffprobe(audio_path, (err, metadata) => {
-            if (err) reject(err);
-            resolve(metadata?.format?.duration || 0);
-        });
-    });
+    const audioDuration = await getAudioDuration(audio_path);
 
     let currentTime = 0;
     const videoClips = [];
@@ -107,9 +113,37 @@ export async function generateVideo(audio_path, destination, title, timeToFly, l
         await execPromise(cmd);
         console.log("Second command done!");
 
-        // Add destination text to the video
+        const sentencesArray = [];
+        let totalDuration = 0;
+
+        for (let index = 0; index < sentences.length; index++) {
+            const sentence = sentences[index];
+            const sentencePath = `./audios/audio_${index}.mp3`;
+            const sentenceDuration = await getAudioDuration(sentencePath);
+            sentencesArray.push({
+                text: sentence,
+                start: totalDuration,
+                end: totalDuration + sentenceDuration
+            });
+            fs.unlinkSync(sentencePath);
+            totalDuration += sentenceDuration;
+        }
+
+        console.log(sentencesArray);
+
+        const argsFilePath = './temp/args.txt';
+        const drawtextContent = [
+            `drawtext=fontfile='fonts/Roboto-Black.ttf':text='${title}':fontcolor=0xF7F6CF:fontsize=96:shadowcolor=black@0.6:shadowx=4:shadowy=2:x=(w-text_w)/2:y=(h-text_h)/2-20`,
+            `drawtext=fontfile='fonts/Roboto-Black.ttf':text='-> ${timeToFly}':fontcolor=0xF7F6CF:fontsize=48:shadowcolor=black@0.6:shadowx=4:shadowy=2:x=(w-text_w)/2:y=(h-text_h)/2+100`,
+            `drawtext=fontfile='fonts/Roboto-Black.ttf':text='-> ${language}':fontcolor=0xF7F6CF:fontsize=48:shadowcolor=black@0.6:shadowx=4:shadowy=2:x=(w-text_w)/2:y=(h-text_h)/2+180`/*,
+            ...sentencesArray.map(sen => `drawtext=fontfile='fonts/Satoshi-Bold.otf':text='${sen.text.replaceAll(`'`, `՚`)}':fontcolor=white:fontsize=32:shadowcolor=black@0.6:shadowx=4:shadowy=2:x=(w-text_w)/2:y=(h-text_h)/2+400:enable='between(t,${Math.floor(sen.start)},${Math.floor(sen.end)})'`)*/
+        ].join(',');
+
         const finalOutputPath = `./videos/final_${destination.replaceAll(" ", "").replaceAll("'", "")}.mp4`;
-        cmd = `ffmpeg -i ${withoutTextOutputPath} -vf "drawtext=fontfile='fonts/Satoshi-Bold.otf':text='${title}':fontcolor=white:fontsize=96:shadowcolor=black@0.6:shadowx=4:shadowy=2:x=(w-text_w)/2:y=(h-text_h)/2-20, drawtext=fontfile='fonts/Satoshi-Bold.otf':text='${timeToFly}':fontcolor=white:fontsize=48:shadowcolor=black@0.6:shadowx=4:shadowy=2:x=(w-text_w)/2:y=(h-text_h)/2+100, drawtext=fontfile='fonts/Satoshi-Bold.otf':text='${language}':fontcolor=white:fontsize=48:shadowcolor=black@0.6:shadowx=4:shadowy=2:x=(w-text_w)/2:y=(h-text_h)/2+180" -codec:a copy ${finalOutputPath}`;
+
+        fs.writeFileSync(argsFilePath, `-i ${withoutTextOutputPath} -vf "${drawtextContent}" -codec:a copy ${finalOutputPath}`);
+
+        cmd = `xargs -a ${argsFilePath} ffmpeg`;
         await execPromise(cmd);
         console.log("Text added to video!");
 
@@ -119,6 +153,7 @@ export async function generateVideo(audio_path, destination, title, timeToFly, l
         fs.unlinkSync(outputVideoPath);
         fs.unlinkSync(withoutTextOutputPath);
         fs.unlinkSync(audio_path);
+        fs.unlinkSync(argsFilePath);
 
         console.log('Temporary files deleted.');
     } catch (err) {

@@ -16,12 +16,21 @@ if (!destination) {
     process.exit(1);
 }
 
-
 generateText(title).then((text) => {
     console.log(text);
-    generateAudio(text, destination).then((audioFile) => {
+    const sentences = text.split('\n').flatMap(sentence => sentence.split('. ')).filter(sentence => sentence.length > 0);
+    const correctedSentences = sentences.map(sentence => sentence.endsWith('.') ? sentence : sentence + '.');
+    console.log(correctedSentences);
+    correctedSentences.forEach((sentence, index) => {
+        generateAudio(sentence, `audio_${index}`).then((audioFile) => {
+            console.log(`Audio file generated for sentence ${index}: ${audioFile}`);
+        }).catch((error) => {
+            console.error(`Error generating audio for sentence ${index}:`, error);
+        });
+    });
+    generateAudio(text, "audio").then((audioFile) => {
         console.log(`Audio file generated: ${audioFile}`);
-        generateVideo(audioFile, destination, title, timeToFly, language).then(() => {
+        generateVideo(audioFile, destination, title, timeToFly, language, correctedSentences).then(() => {
             console.log('Video generated successfully.');
         }).catch((error) => {         
             console.error('Error generating video:', error);
